@@ -2,7 +2,8 @@
 
 A 3-page Power BI dashboard that shows the owners of a B2B SaaS company **how much recurring revenue they lose to churn, from whom, why, and which accounts to save next**, at a glance.
 
-![Executive overview](docs/images/overview.png)
+<!-- Dashboard screenshot: save it as docs/images/overview.png, then replace this comment with:
+![Executive overview](docs/images/overview.png) -->
 
 ## Key findings
 
@@ -21,6 +22,10 @@ The full analysis and recommendations are in the [insights memo](docs/insights-m
 | **Churn Drivers** | Who leaves, and why? | Metric switcher (field parameter) · churn by plan and region · cohort retention heatmap · decomposition tree · risk scatter |
 | **Customer Detail** | What happened to this account? | Drill-through page: status, MRR and usage history, ticket log |
 | *Tooltip* | What happened that month? | Custom report-page tooltip on the trend chart |
+
+Page 1 layout, designed before the build (top-down: KPIs, then trend, then accounts to call):
+
+![Executive Overview wireframe](docs/images/wireframe.png)
 
 ## Skills shown
 
