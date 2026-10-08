@@ -1,0 +1,46 @@
+table DimChurnReason
+	lineageTag: 0a4e1785-4d74-41a9-bc47-b364065d9f75
+
+	column ReasonID
+		dataType: string
+		lineageTag: 5d783422-ecd6-42d4-befd-ab18c13ecc1b
+		summarizeBy: none
+		sourceColumn: ReasonID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Reason
+		dataType: string
+		lineageTag: f2064248-34c2-47d1-b5c5-37828292f9a8
+		summarizeBy: none
+		sourceColumn: Reason
+
+		annotation SummarizationSetBy = Automatic
+
+	column ReasonGroup
+		dataType: string
+		lineageTag: 44b850c8-65cc-4934-a3d5-0eac03e5a1fe
+		summarizeBy: none
+		sourceColumn: ReasonGroup
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DimChurnReason = m
+		mode: import
+		source =
+				// DimChurnReason: one row per reason, plus a "Not stated" row for churn events with no reason captured
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "churn_reasons.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    AddNotStated = Table.InsertRows(Promoted, Table.RowCount(Promoted), {
+				        [reason_code = "NS", reason = "Not stated", reason_group = "Unknown"]
+				    }),
+				    Typed = Table.TransformColumnTypes(AddNotStated, {{"reason_code", type text}, {"reason", type text}, {"reason_group", type text}}),
+				    Renamed = Table.RenameColumns(Typed, {{"reason_code", "ReasonID"}, {"reason", "Reason"}, {"reason_group", "ReasonGroup"}})
+				in
+				    Renamed
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

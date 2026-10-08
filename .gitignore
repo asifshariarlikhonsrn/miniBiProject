@@ -1,0 +1,17 @@
+# Power BI project: local cache and user settings
+**/.pbi/localSettings.json
+**/.pbi/cache.abf
+*.pbix.bak
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Old binary export of the report (the .pbip project is the source of truth)
+report/*.pbix

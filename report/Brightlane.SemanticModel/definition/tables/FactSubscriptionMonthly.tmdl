@@ -1,0 +1,115 @@
+table FactSubscriptionMonthly
+	lineageTag: 27d3f7a4-4892-4957-babb-0a398655fa89
+
+	column AccountID
+		isHidden
+		dataType: int64
+		formatString: 0
+		lineageTag: 762d8660-b5fa-4d5b-8ee8-10fa4d85d157
+		summarizeBy: none
+		sourceColumn: AccountID
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthStart
+		isHidden
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 1d3cd15c-5000-435d-90e4-4b12ea364b79
+		summarizeBy: none
+		sourceColumn: MonthStart
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column PlanID
+		isHidden
+		dataType: int64
+		formatString: 0
+		lineageTag: 4e6ec05b-1316-422d-89f4-b7c463e3d0e5
+		summarizeBy: none
+		sourceColumn: PlanID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Seats
+		dataType: int64
+		formatString: 0
+		lineageTag: 9245974f-e1bc-4885-9734-a15b04c962fe
+		summarizeBy: sum
+		sourceColumn: Seats
+
+		annotation SummarizationSetBy = Automatic
+
+	column MRR
+		dataType: decimal
+		formatString: \$#,0
+		lineageTag: 74efcbb6-867a-4465-80c2-3a0104791577
+		summarizeBy: sum
+		sourceColumn: MRR
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"currencyCulture":"en-US"}
+
+	column MRRChange
+		dataType: decimal
+		formatString: \$#,0
+		lineageTag: 69503665-99a8-4ecd-945d-9c22ddfed6e2
+		summarizeBy: sum
+		sourceColumn: MRRChange
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"currencyCulture":"en-US"}
+
+	column MovementType
+		dataType: string
+		lineageTag: e1228483-7c1a-4ae4-bba0-70dfb65fec28
+		summarizeBy: none
+		sourceColumn: MovementType
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthsSinceSignup
+		dataType: int64
+		formatString: 0
+		lineageTag: feaf68cb-0ccd-442a-91ce-0c4a51da751c
+		summarizeBy: none
+		sourceColumn: MonthsSinceSignup
+
+		annotation SummarizationSetBy = Automatic
+
+	partition FactSubscriptionMonthly = m
+		mode: import
+		source =
+				// FactSubscriptionMonthly: one row per account per month (MRR snapshot + the movement that produced it)
+				// Adds MonthsSinceSignup for the cohort-retention matrix
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "subscriptions_monthly.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {
+				        {"account_id", Int64.Type}, {"month_start", type date}, {"plan_id", Int64.Type}, {"seats", Int64.Type},
+				        {"mrr", Currency.Type}, {"mrr_change", Currency.Type}, {"movement_type", type text}
+				    }, "en-US"),
+				
+				    // Look up each account's cohort month from DimAccount
+				    Merged = Table.NestedJoin(Typed, {"account_id"}, DimAccount, {"AccountID"}, "Account", JoinKind.LeftOuter),
+				    Expanded = Table.ExpandTableColumn(Merged, "Account", {"CohortMonth"}),
+				    AddMonthsSince = Table.AddColumn(Expanded, "MonthsSinceSignup", each
+				        (Date.Year([month_start]) - Date.Year([CohortMonth])) * 12 + Date.Month([month_start]) - Date.Month([CohortMonth]),
+				        Int64.Type),
+				    Removed = Table.RemoveColumns(AddMonthsSince, {"CohortMonth"}),
+				
+				    Renamed = Table.RenameColumns(Removed, {
+				        {"account_id", "AccountID"}, {"month_start", "MonthStart"}, {"plan_id", "PlanID"}, {"seats", "Seats"},
+				        {"mrr", "MRR"}, {"mrr_change", "MRRChange"}, {"movement_type", "MovementType"}
+				    })
+				in
+				    Renamed
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

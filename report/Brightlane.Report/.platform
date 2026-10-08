@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Report",
+    "displayName": "Brightlane"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "c2caed39-5a3e-4685-86b4-5be502ea1b57"
+  }
+}

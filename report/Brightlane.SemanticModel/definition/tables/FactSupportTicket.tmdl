@@ -1,0 +1,103 @@
+table FactSupportTicket
+	lineageTag: dbccd229-c999-4fbc-875c-adaa960e1282
+
+	column TicketID
+		dataType: int64
+		formatString: 0
+		lineageTag: 2527e348-61f0-4f28-87bf-5e826805cfd1
+		summarizeBy: count
+		sourceColumn: TicketID
+
+		annotation SummarizationSetBy = Automatic
+
+	column AccountID
+		isHidden
+		dataType: int64
+		formatString: 0
+		lineageTag: aa39a5da-7f52-4082-9f4c-1a3d5bb186d9
+		summarizeBy: none
+		sourceColumn: AccountID
+
+		annotation SummarizationSetBy = Automatic
+
+	column CreatedDate
+		isHidden
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 3428119e-4738-41cc-945d-f033d1a124e5
+		summarizeBy: none
+		sourceColumn: CreatedDate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Priority
+		dataType: string
+		lineageTag: 8ad7b8b1-d439-4bac-a2a2-0386dc6353f8
+		summarizeBy: none
+		sourceColumn: Priority
+
+		annotation SummarizationSetBy = Automatic
+
+	column Category
+		dataType: string
+		lineageTag: c08ec45e-77fb-4165-b324-9e68b85871fc
+		summarizeBy: none
+		sourceColumn: Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column ResolutionHours
+		dataType: double
+		lineageTag: 27e8eaf8-5f4f-4952-ae63-49942def48a5
+		summarizeBy: sum
+		sourceColumn: ResolutionHours
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CSAT
+		dataType: int64
+		formatString: 0
+		lineageTag: ed350ac0-ea25-4e8a-885a-48aedfe4e049
+		summarizeBy: none
+		sourceColumn: CSAT
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsOpen
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 0522ce23-6eaf-48e6-b5fc-6801d60e2ff6
+		summarizeBy: none
+		sourceColumn: IsOpen
+
+		annotation SummarizationSetBy = Automatic
+
+	partition FactSupportTicket = m
+		mode: import
+		source =
+				// FactSupportTicket: one row per ticket
+				// Fixes: inconsistent priority casing/spaces. Open tickets have no resolution time or CSAT (kept as null)
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "support_tickets.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    FixPriority = Table.TransformColumns(Promoted, {{"priority", each Text.Proper(Text.Trim(_)), type text}}),
+				    Typed = Table.TransformColumnTypes(FixPriority, {
+				        {"ticket_id", Int64.Type}, {"account_id", Int64.Type}, {"created_date", type date}, {"category", type text},
+				        {"resolution_hours", type number}, {"csat", Int64.Type}
+				    }, "en-US"),
+				    AddIsOpen = Table.AddColumn(Typed, "IsOpen", each [resolution_hours] = null, type logical),
+				    Renamed = Table.RenameColumns(AddIsOpen, {
+				        {"ticket_id", "TicketID"}, {"account_id", "AccountID"}, {"created_date", "CreatedDate"}, {"priority", "Priority"},
+				        {"category", "Category"}, {"resolution_hours", "ResolutionHours"}, {"csat", "CSAT"}
+				    })
+				in
+				    Renamed
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

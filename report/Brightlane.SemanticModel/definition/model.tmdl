@@ -1,0 +1,29 @@
+model Model
+	culture: en-GB
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-GB
+	valueFilterBehavior: independent
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_QueryOrder = ["DataFolder","DimAccount","DimPlan","DimChurnReason","FactSubscriptionMonthly","FactChurnEvent","FactSupportTicket","FactUsage","DimDate"]
+
+annotation PBI_ProTooling = ["DevMode"]
+
+ref table DimAccount
+ref table DimPlan
+ref table DimChurnReason
+ref table FactSubscriptionMonthly
+ref table FactChurnEvent
+ref table FactSupportTicket
+ref table FactUsage
+ref table DimDate
+ref table 'MRR Bridge Steps'
+ref table _Measures
+ref table 'Trend Metric'
+
+ref cultureInfo en-GB
+

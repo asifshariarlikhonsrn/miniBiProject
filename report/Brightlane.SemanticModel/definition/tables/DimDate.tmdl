@@ -1,0 +1,122 @@
+table DimDate
+	lineageTag: 71ad41a0-0210-4fa1-b421-002efacc8669
+	dataCategory: Time
+
+	column Date
+		dataType: dateTime
+		isKey
+		formatString: Long Date
+		lineageTag: 6b292598-3825-4e63-8a33-cee9043c68a7
+		summarizeBy: none
+		sourceColumn: Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Year
+		dataType: int64
+		formatString: 0
+		lineageTag: 02a9a5ce-ea18-440d-9570-683f0db6445d
+		summarizeBy: none
+		sourceColumn: Year
+
+		annotation SummarizationSetBy = Automatic
+
+	column Quarter
+		dataType: string
+		lineageTag: 2d0d4cb4-be4e-4a2d-b1f2-7088378293b3
+		summarizeBy: none
+		sourceColumn: Quarter
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthStart
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 8d11a752-18e7-4b0d-9ffb-c707dfd7e784
+		summarizeBy: none
+		sourceColumn: MonthStart
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column MonthName
+		sortByColumn: MonthSort
+		dataType: string
+		lineageTag: 3ebef83d-2408-45a7-a9eb-ac382f89e439
+		summarizeBy: none
+		sourceColumn: MonthName
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthSort
+		isHidden
+		dataType: int64
+		formatString: 0
+		lineageTag: e436a1cb-75cb-41d3-a76d-6acef04262d0
+		summarizeBy: none
+		sourceColumn: MonthSort
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearMonth
+		sortByColumn: YearMonthSort
+		dataType: string
+		lineageTag: e580af7f-78be-4f5e-853a-4927a603c327
+		summarizeBy: none
+		sourceColumn: YearMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearMonthSort
+		isHidden
+		dataType: int64
+		formatString: 0
+		lineageTag: 79dbe224-77a0-4995-afcc-598b238b2ca4
+		summarizeBy: none
+		sourceColumn: YearMonthSort
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsInData
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 26f954b0-7acd-4e89-981c-11a308a0b367
+		summarizeBy: none
+		sourceColumn: IsInData
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DimDate = m
+		mode: import
+		source =
+				// DimDate: one continuous row per day, covering whole years from the first to the last month in the data
+				// After loading: Table tools > Mark as date table (Date column); sort MonthName by MonthSort, YearMonth by YearMonthSort
+				let
+				    FirstMonth = List.Min(FactSubscriptionMonthly[MonthStart]),
+				    LastMonth = List.Max(FactSubscriptionMonthly[MonthStart]),
+				    StartDate = Date.StartOfYear(FirstMonth),
+				    EndDate = Date.EndOfYear(LastMonth),
+				    Dates = List.Dates(StartDate, Duration.Days(EndDate - StartDate) + 1, #duration(1, 0, 0, 0)),
+				    ToTable = Table.FromList(Dates, Splitter.SplitByNothing(), {"Date"}),
+				    Typed = Table.TransformColumnTypes(ToTable, {{"Date", type date}}),
+				    AddYear = Table.AddColumn(Typed, "Year", each Date.Year([Date]), Int64.Type),
+				    AddQuarter = Table.AddColumn(AddYear, "Quarter", each "Q" & Text.From(Date.QuarterOfYear([Date])), type text),
+				    AddMonthStart = Table.AddColumn(AddQuarter, "MonthStart", each Date.StartOfMonth([Date]), type date),
+				    AddMonthName = Table.AddColumn(AddMonthStart, "MonthName", each Date.ToText([Date], [Format = "MMM", Culture = "en-US"]), type text),
+				    AddMonthSort = Table.AddColumn(AddMonthName, "MonthSort", each Date.Month([Date]), Int64.Type),
+				    AddYearMonth = Table.AddColumn(AddMonthSort, "YearMonth", each Date.ToText([Date], [Format = "MMM yyyy", Culture = "en-US"]), type text),
+				    AddYearMonthSort = Table.AddColumn(AddYearMonth, "YearMonthSort", each Date.Year([Date]) * 100 + Date.Month([Date]), Int64.Type),
+				    // Flag months that are in the data, so visuals can hide the empty months after the last one
+				    AddInData = Table.AddColumn(AddYearMonthSort, "IsInData", each [MonthStart] <= LastMonth, type logical)
+				in
+				    AddInData
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

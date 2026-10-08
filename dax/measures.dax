@@ -1,0 +1,336 @@
+// =============================================================================
+// Brightlane SaaS Churn Dashboard: DAX measure library
+// Create an empty table named _Measures (Home > Enter data > Load) and add each
+// measure to it with Modeling > New measure. Set the format shown in [brackets].
+//
+// Key rule: MRR is a SNAPSHOT (a balance at month end), so it is taken at the
+// last month in the filter context and never summed across months.
+// New / Expansion / Contraction / Churned MRR are FLOWS and are summed.
+// =============================================================================
+
+
+// ---------- 1. Core snapshot and flow measures --------------------------------
+
+MRR =   // [Currency, 0 decimals]
+VAR _lastMonth = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE (
+        SUM ( FactSubscriptionMonthly[MRR] ),
+        REMOVEFILTERS ( DimDate ),
+        DimDate[MonthStart] = _lastMonth
+    )
+
+ARR = [MRR] * 12   // [Currency, 0 decimals]
+
+Active Customers =   // [Whole number]
+VAR _lastMonth = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE (
+        DISTINCTCOUNT ( FactSubscriptionMonthly[AccountID] ),
+        REMOVEFILTERS ( DimDate ),
+        DimDate[MonthStart] = _lastMonth,
+        FactSubscriptionMonthly[MRR] > 0
+    )
+
+New MRR =
+    CALCULATE ( SUM ( FactSubscriptionMonthly[MRRChange] ), FactSubscriptionMonthly[MovementType] = "New" )
+
+Expansion MRR =
+    CALCULATE ( SUM ( FactSubscriptionMonthly[MRRChange] ), FactSubscriptionMonthly[MovementType] = "Expansion" )
+
+Contraction MRR =   // shown as a positive amount
+    - CALCULATE ( SUM ( FactSubscriptionMonthly[MRRChange] ), FactSubscriptionMonthly[MovementType] = "Contraction" )
+
+Churned MRR =   // shown as a positive amount
+    - CALCULATE ( SUM ( FactSubscriptionMonthly[MRRChange] ), FactSubscriptionMonthly[MovementType] = "Churn" )
+
+Net New MRR = [New MRR] + [Expansion MRR] - [Contraction MRR] - [Churned MRR]
+
+
+// ---------- 2. Retention ratios ------------------------------------------------
+
+Starting MRR =   // MRR at the end of the month BEFORE the selected period
+VAR _firstMonth = MIN ( DimDate[MonthStart] )
+RETURN
+    CALCULATE (
+        SUM ( FactSubscriptionMonthly[MRR] ),
+        REMOVEFILTERS ( DimDate ),
+        DimDate[MonthStart] = EDATE ( _firstMonth, -1 )
+    )
+
+Customers at Start =
+VAR _firstMonth = MIN ( DimDate[MonthStart] )
+RETURN
+    CALCULATE (
+        DISTINCTCOUNT ( FactSubscriptionMonthly[AccountID] ),
+        REMOVEFILTERS ( DimDate ),
+        DimDate[MonthStart] = EDATE ( _firstMonth, -1 ),
+        FactSubscriptionMonthly[MRR] > 0
+    )
+
+Churned Customers =
+    CALCULATE (
+        DISTINCTCOUNT ( FactSubscriptionMonthly[AccountID] ),
+        FactSubscriptionMonthly[MovementType] = "Churn"
+    )
+
+Logo Churn Rate = DIVIDE ( [Churned Customers], [Customers at Start] )   // [Percentage, 1 decimal]
+
+Avg Monthly Churn % =   // average of the monthly rates across the selected months
+    AVERAGEX ( VALUES ( DimDate[MonthStart] ), [Logo Churn Rate] )
+
+Gross Revenue Churn % = DIVIDE ( [Churned MRR] + [Contraction MRR], [Starting MRR] )
+
+NRR =   // simplified: includes expansion from accounts that joined during the period
+    DIVIDE ( [Starting MRR] + [Expansion MRR] - [Contraction MRR] - [Churned MRR], [Starting MRR] )
+
+ARPA = DIVIDE ( [MRR], [Active Customers] )   // average revenue per account
+
+LTV = DIVIDE ( [ARPA], [Avg Monthly Churn %] )   // simple lifetime value
+
+
+// ---------- 3. Time intelligence ----------------------------------------------
+// DimDate must be marked as the date table.
+
+MRR PM =   // explicit month offset: DimDate runs past the last data month
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( SUM ( FactSubscriptionMonthly[MRR] ), REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -1 ) )
+MRR MoM % = DIVIDE ( [MRR] - [MRR PM], [MRR PM] )
+MRR PY =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( SUM ( FactSubscriptionMonthly[MRR] ), REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -12 ) )
+MRR YoY % = DIVIDE ( [MRR] - [MRR PY], [MRR PY] )
+
+Logo Churn Rate PM =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( [Logo Churn Rate], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -1 ) )
+
+// YTD only makes sense for flows, never for the MRR snapshot
+Net New MRR YTD = TOTALYTD ( [Net New MRR], DimDate[Date] )
+Churned MRR YTD = TOTALYTD ( [Churned MRR], DimDate[Date] )
+
+Churned MRR 3M Avg =   // 3-month moving average
+VAR _months =
+    CALCULATETABLE (
+        VALUES ( DimDate[MonthStart] ),
+        DATESINPERIOD ( DimDate[Date], MAX ( DimDate[Date] ), -3, MONTH )
+    )
+RETURN
+    CALCULATE ( AVERAGEX ( _months, [Churned MRR] ), REMOVEFILTERS ( DimDate ) )
+
+
+// ---------- 4. Cohorts, ranking and early warning ------------------------------
+
+// Cohort matrix: rows = DimAccount[CohortMonth], columns = FactSubscriptionMonthly[MonthsSinceSignup]
+Cohort Size = COUNTROWS ( DimAccount )
+
+Retained Accounts =
+    CALCULATE (
+        DISTINCTCOUNT ( FactSubscriptionMonthly[AccountID] ),
+        FactSubscriptionMonthly[MRR] > 0,
+        REMOVEFILTERS ( DimDate )
+    )
+
+Cohort Retention % = DIVIDE ( [Retained Accounts], [Cohort Size] )
+
+Account MRR Rank = RANKX ( ALLSELECTED ( DimAccount[AccountName] ), [MRR], , DESC, DENSE )
+
+Active Users = SUM ( FactUsage[ActiveUsers] )
+
+Active Users 3M Avg =   // average of the 3 complete months before the selected month
+    CALCULATE (
+        AVERAGEX ( VALUES ( DimDate[MonthStart] ), [Active Users] ),
+        DATESINPERIOD ( DimDate[Date], EOMONTH ( MAX ( DimDate[Date] ), -1 ), -3, MONTH )
+    )
+
+Usage Change % = DIVIDE ( [Active Users] - [Active Users 3M Avg], [Active Users 3M Avg] )
+
+Tickets = COUNTROWS ( FactSupportTicket )
+
+Avg Resolution Hours = AVERAGE ( FactSupportTicket[ResolutionHours] )
+
+Avg CSAT = AVERAGE ( FactSupportTicket[CSAT] )
+
+// Thresholds are assumptions: tune them and state them in the README
+At-Risk Accounts =
+    COUNTROWS (
+        FILTER (
+            VALUES ( DimAccount[AccountID] ),
+            [MRR] > 0 && ( [Usage Change %] < -0.30 || [Tickets] >= 3 )
+        )
+    )
+
+At-Risk MRR =
+    SUMX (
+        FILTER (
+            VALUES ( DimAccount[AccountID] ),
+            [MRR] > 0 && ( [Usage Change %] < -0.30 || [Tickets] >= 3 )
+        ),
+        [MRR]
+    )
+
+
+// ---------- 5. MRR bridge (waterfall chart) ------------------------------------
+// New table (Modeling > New table). Do not relate it to anything; sort Step by Sort.
+// The waterfall visual adds the End MRR total bar itself.
+
+MRR Bridge Steps =
+    DATATABLE (
+        "Step", STRING, "Sort", INTEGER,
+        {
+            { "Start MRR", 1 },
+            { "New", 2 },
+            { "Expansion", 3 },
+            { "Contraction", 4 },
+            { "Churn", 5 }
+        }
+    )
+
+Bridge Value =
+    SWITCH (
+        SELECTEDVALUE ( 'MRR Bridge Steps'[Step] ),
+        "Start MRR", [Starting MRR],
+        "New", [New MRR],
+        "Expansion", [Expansion MRR],
+        "Contraction", - [Contraction MRR],
+        "Churn", - [Churned MRR]
+    )
+
+
+// ---------- 6. Storytelling helpers ------------------------------------------
+
+Overview Title =
+"Brightlane · " & [Reporting Month] & " · MRR " & FORMAT ( [MRR], "$#,0" )
+    & IF ( [MRR MoM %] >= 0, ", up ", ", down " )
+    & FORMAT ( ABS ( [MRR MoM %] ), "0.0%" ) & " vs last month"
+
+Churn Title =
+"Logo churn " & FORMAT ( [Logo Churn % (Month)], "0.0%" ) & " in " & [Reporting Month]
+    & IF ( [Logo Churn % (Month)] <= [Logo Churn % (Prev Month)], " · improving", " · worsening" )
+
+KPI Colour = IF ( [Net New MRR] >= 0, "#1B7F5A", "#C0392B" )   // Format > Conditional formatting > Field value
+
+
+// ---------- 7. Executive KPIs (always the latest month in the selection) -----
+
+Reporting Month =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    FORMAT ( _m, "mmm yyyy" )
+
+Net New MRR (Month) =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( [Net New MRR], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m )
+
+Net New MRR (Prev Month) =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( [Net New MRR], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -1 ) )
+
+Logo Churn % (Month) =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( [Logo Churn Rate], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m )
+
+Logo Churn % (Prev Month) =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( [Logo Churn Rate], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -1 ) )
+
+NRR (12M) =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( [NRR], REMOVEFILTERS ( DimDate ), DATESBETWEEN ( DimDate[Date], EDATE ( _m, -11 ), EOMONTH ( _m, 0 ) ) )
+
+At-Risk MRR (Month) =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( [At-Risk MRR], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m )
+
+At-Risk Accounts (Month) =
+VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+RETURN
+    CALCULATE ( [At-Risk Accounts], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m )
+
+Usage Change % (Month) =
+IF ( [MRR] > 0, VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+    RETURN
+        CALCULATE ( [Usage Change %], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m ) )
+
+Tickets (Month) =
+IF ( [MRR] > 0, VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+    RETURN
+        CALCULATE ( [Tickets], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m ) )
+
+MRR vs PM Label =
+VAR _d = [MRR MoM %]
+RETURN
+    IF ( NOT ISBLANK ( _d ), FORMAT ( _d, "+0.0%;-0.0%" ) & " vs last month" )
+
+Net New vs PM Label = FORMAT ( [Net New MRR (Month)] - [Net New MRR (Prev Month)], "+$#,0;-$#,0" ) & " vs last month"
+
+Churn vs PM Label = FORMAT ( ( [Logo Churn % (Month)] - [Logo Churn % (Prev Month)] ) * 100, "+0.0;-0.0" ) & " pts vs last month"
+
+NRR Label = "Trailing 12 months · target 100%"
+
+At-Risk Label = FORMAT ( [At-Risk Accounts (Month)], "#,0" ) & " accounts flagged"
+
+MRR Delta Colour = IF ( [MRR MoM %] >= 0, "#1B7F5A", "#C0392B" )
+
+Net New Delta Colour = IF ( [Net New MRR (Month)] >= [Net New MRR (Prev Month)], "#1B7F5A", "#C0392B" )
+
+Churn Delta Colour = IF ( [Logo Churn % (Month)] <= [Logo Churn % (Prev Month)], "#1B7F5A", "#C0392B" )
+
+NRR Colour = IF ( [NRR (12M)] >= 1, "#1B7F5A", "#C0392B" )
+
+// ---------- 8. Visual helpers -------------------------------------------------
+
+Contraction MRR (Chart) = - [Contraction MRR]
+
+Churned MRR (Chart) = - [Churned MRR]
+
+MRR Lost = SUM ( FactChurnEvent[MRRLost] )
+
+Churn Events = COUNTROWS ( FactChurnEvent )
+
+Account Title =
+SELECTEDVALUE ( DimAccount[AccountName], "Select an account" )
+    & " · " & SELECTEDVALUE ( DimAccount[Region] ) & " · " & SELECTEDVALUE ( DimAccount[Industry] )
+
+Account Status =
+VAR _churnDate = CALCULATE ( MAX ( FactChurnEvent[ChurnDate] ), REMOVEFILTERS ( DimDate ) )
+VAR _reasonId = CALCULATE ( MAX ( FactChurnEvent[ReasonID] ), REMOVEFILTERS ( DimDate ) )
+RETURN
+    IF (
+        ISBLANK ( _churnDate ),
+        "Active customer",
+        "Churned " & FORMAT ( _churnDate, "d mmm yyyy" ) & " · "
+            & LOOKUPVALUE ( DimChurnReason[Reason], DimChurnReason[ReasonID], _reasonId )
+    )
+
+Tooltip Title = FORMAT ( MAX ( DimDate[MonthStart] ), "mmmm yyyy" )
+
+
+// =============================================================================
+// Calculation group (Model view > Calculation groups > New calculation group)
+// Name: Time Calc   Column: Period
+// Use on any measure instead of writing PM / PY / YoY versions of each one.
+// =============================================================================
+//
+//  Current = SELECTEDMEASURE ()
+//  PM      = CALCULATE ( SELECTEDMEASURE (), DATEADD ( DimDate[Date], -1, MONTH ) )
+//  MoM %   = VAR _pm = CALCULATE ( SELECTEDMEASURE (), DATEADD ( DimDate[Date], -1, MONTH ) )
+//            RETURN DIVIDE ( SELECTEDMEASURE () - _pm, _pm )
+//  PY      = CALCULATE ( SELECTEDMEASURE (), SAMEPERIODLASTYEAR ( DimDate[Date] ) )
+//  YoY %   = VAR _py = CALCULATE ( SELECTEDMEASURE (), SAMEPERIODLASTYEAR ( DimDate[Date] ) )
+//            RETURN DIVIDE ( SELECTEDMEASURE () - _py, _py )
+//  YTD     = CALCULATE ( SELECTEDMEASURE (), DATESYTD ( DimDate[Date] ) )   // flows only
+//
+// Set a format string expression on MoM % and YoY %: "0.0%"
+//
+// Field parameter (Modeling > New parameter > Fields): add MRR, Net New MRR and
+// Logo Churn Rate, then put the parameter on the trend chart's Y axis and as a slicer.

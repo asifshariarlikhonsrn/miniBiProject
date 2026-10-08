@@ -1,0 +1,28 @@
+table 'MRR Bridge Steps'
+
+	column Step
+		dataType: string
+		sortByColumn: Sort
+		summarizeBy: none
+		sourceColumn: [Step]
+
+	column Sort
+		dataType: int64
+		isHidden
+		summarizeBy: none
+		sourceColumn: [Sort]
+
+	partition 'MRR Bridge Steps' = calculated
+		mode: import
+		source =
+				DATATABLE (
+				    "Step", STRING, "Sort", INTEGER,
+				    {
+				        { "Start MRR", 1 },
+				        { "New", 2 },
+				        { "Expansion", 3 },
+				        { "Contraction", 4 },
+				        { "Churn", 5 }
+				    }
+				)
+

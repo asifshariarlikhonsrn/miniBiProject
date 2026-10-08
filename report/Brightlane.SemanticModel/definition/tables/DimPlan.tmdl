@@ -1,0 +1,47 @@
+table DimPlan
+	lineageTag: e6ca7d5f-910d-468a-89cd-b452a08c25c5
+
+	column PlanID
+		dataType: int64
+		formatString: 0
+		lineageTag: 6d408cfd-46b7-47f2-8b80-7798a23acc5a
+		summarizeBy: none
+		sourceColumn: PlanID
+
+		annotation SummarizationSetBy = Automatic
+
+	column PlanName
+		dataType: string
+		lineageTag: 9d3f3675-4cfe-4fcd-95ee-901f540a8ca6
+		summarizeBy: none
+		sourceColumn: PlanName
+
+		annotation SummarizationSetBy = Automatic
+
+	column PricePerSeat
+		dataType: decimal
+		formatString: \$#,0
+		lineageTag: 3abc7f5c-5224-4cba-9479-cf5dd6efec29
+		summarizeBy: none
+		sourceColumn: PricePerSeat
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"currencyCulture":"en-US"}
+
+	partition DimPlan = m
+		mode: import
+		source =
+				// DimPlan: one row per plan (current list price per seat)
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "plans.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {{"plan_id", Int64.Type}, {"plan_name", type text}, {"price_per_seat", Currency.Type}}),
+				    Renamed = Table.RenameColumns(Typed, {{"plan_id", "PlanID"}, {"plan_name", "PlanName"}, {"price_per_seat", "PricePerSeat"}})
+				in
+				    Renamed
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

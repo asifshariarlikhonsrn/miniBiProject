@@ -1,0 +1,39 @@
+table 'Trend Metric'
+
+	column 'Trend Metric'
+		dataType: string
+		sortByColumn: 'Trend Metric Order'
+		summarizeBy: none
+		sourceColumn: [Value1]
+
+		relatedColumnDetails
+			groupByColumn: 'Trend Metric Fields'
+
+	column 'Trend Metric Fields'
+		dataType: string
+		isHidden
+		summarizeBy: none
+		sourceColumn: [Value2]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 3,
+				  "kind": 2
+				}
+
+	column 'Trend Metric Order'
+		dataType: int64
+		isHidden
+		summarizeBy: none
+		sourceColumn: [Value3]
+
+	partition 'Trend Metric' = calculated
+		mode: import
+		source =
+				{
+				    ( "Logo churn %", NAMEOF ( '_Measures'[Logo Churn Rate] ), 0 ),
+				    ( "Churned MRR", NAMEOF ( '_Measures'[Churned MRR] ), 1 ),
+				    ( "Net New MRR", NAMEOF ( '_Measures'[Net New MRR] ), 2 ),
+				    ( "MRR", NAMEOF ( '_Measures'[MRR] ), 3 )
+				}
+

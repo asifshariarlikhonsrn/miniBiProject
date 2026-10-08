@@ -1,0 +1,63 @@
+table FactUsage
+	lineageTag: db8e29a9-93aa-4f27-bc5f-f2ac34f3e403
+
+	column AccountID
+		isHidden
+		dataType: int64
+		formatString: 0
+		lineageTag: 16ef5604-e394-47e6-a695-520ab71b0af5
+		summarizeBy: none
+		sourceColumn: AccountID
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthStart
+		isHidden
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: cd84c84f-71b9-425d-ae6b-114e8307f8eb
+		summarizeBy: none
+		sourceColumn: MonthStart
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column ActiveUsers
+		dataType: int64
+		formatString: 0
+		lineageTag: a568a3a9-7372-4337-8a2c-8be28826f79f
+		summarizeBy: sum
+		sourceColumn: ActiveUsers
+
+		annotation SummarizationSetBy = Automatic
+
+	column Logins
+		dataType: int64
+		formatString: 0
+		lineageTag: f4754b61-1756-4085-86b3-25ef67af2253
+		summarizeBy: sum
+		sourceColumn: Logins
+
+		annotation SummarizationSetBy = Automatic
+
+	partition FactUsage = m
+		mode: import
+		source =
+				// FactUsage: one row per account per month
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "usage_monthly.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {
+				        {"account_id", Int64.Type}, {"month_start", type date}, {"active_users", Int64.Type}, {"logins", Int64.Type}
+				    }, "en-US"),
+				    Renamed = Table.RenameColumns(Typed, {
+				        {"account_id", "AccountID"}, {"month_start", "MonthStart"}, {"active_users", "ActiveUsers"}, {"logins", "Logins"}
+				    })
+				in
+				    Renamed
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

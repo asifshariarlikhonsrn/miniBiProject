@@ -1,0 +1,73 @@
+table FactChurnEvent
+	lineageTag: 3b923ceb-97da-44ca-84e8-842018f9ebf1
+
+	column AccountID
+		isHidden
+		dataType: int64
+		formatString: 0
+		lineageTag: 93d4a2df-5133-40ca-a375-d55545c32c2f
+		summarizeBy: none
+		sourceColumn: AccountID
+
+		annotation SummarizationSetBy = Automatic
+
+	column PlanID
+		isHidden
+		dataType: int64
+		formatString: 0
+		summarizeBy: none
+		sourceColumn: PlanID
+
+	column ChurnDate
+		isHidden
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: f6d88465-c16f-4bd8-a20f-c9067778b93b
+		summarizeBy: none
+		sourceColumn: ChurnDate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column ReasonID
+		isHidden
+		dataType: string
+		lineageTag: 686eccab-919f-487f-b5c3-e464c870174b
+		summarizeBy: none
+		sourceColumn: ReasonID
+
+		annotation SummarizationSetBy = Automatic
+
+	column MRRLost
+		dataType: decimal
+		formatString: \$#,0
+		lineageTag: 900ddbef-47cf-4b9e-83e8-39e48a79183c
+		summarizeBy: sum
+		sourceColumn: MRRLost
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"currencyCulture":"en-US"}
+
+	partition FactChurnEvent = m
+		mode: import
+		source =
+				// FactChurnEvent: one row per churned account. Blank reasons become "NS" (Not stated)
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "churn_events.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    FillReason = Table.ReplaceValue(Promoted, "", "NS", Replacer.ReplaceValue, {"reason_code"}),
+				    Typed = Table.TransformColumnTypes(FillReason, {
+				        {"account_id", Int64.Type}, {"plan_id", Int64.Type}, {"churn_date", type date}, {"reason_code", type text}, {"mrr_lost", Currency.Type}
+				    }, "en-US"),
+				    Renamed = Table.RenameColumns(Typed, {
+				        {"account_id", "AccountID"}, {"plan_id", "PlanID"}, {"churn_date", "ChurnDate"}, {"reason_code", "ReasonID"}, {"mrr_lost", "MRRLost"}
+				    })
+				in
+				    Renamed
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

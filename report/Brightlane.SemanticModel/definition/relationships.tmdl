@@ -1,0 +1,46 @@
+relationship 9cb04c34-e1c8-4c76-8d3f-7fce23b13f92
+	fromColumn: FactSubscriptionMonthly.AccountID
+	toColumn: DimAccount.AccountID
+
+	annotation PBI_IsFromSource = FS
+
+relationship 73124ceb-303c-e6d8-f4d3-7c1a23d35d8d
+	fromColumn: FactSubscriptionMonthly.PlanID
+	toColumn: DimPlan.PlanID
+
+relationship 4a139c09-aa9f-7486-a604-de053f337e35
+	fromColumn: FactChurnEvent.AccountID
+	toColumn: DimAccount.AccountID
+
+relationship 80a8a168-ee2d-8300-60ce-0d9676828b81
+	fromColumn: FactSupportTicket.AccountID
+	toColumn: DimAccount.AccountID
+
+relationship 6c84b025-01ec-cc21-68ef-f9a55b3c0c08
+	fromColumn: FactUsage.AccountID
+	toColumn: DimAccount.AccountID
+
+relationship b10da902-6ff2-377a-63db-bc1b51d99b77
+	fromColumn: FactChurnEvent.ReasonID
+	toColumn: DimChurnReason.ReasonID
+
+relationship 3f6e2a1c-8b4d-4e7a-9c15-2d7b6f0a1e01
+	fromColumn: FactSubscriptionMonthly.MonthStart
+	toColumn: DimDate.Date
+
+relationship 3f6e2a1c-8b4d-4e7a-9c15-2d7b6f0a1e02
+	fromColumn: FactChurnEvent.ChurnDate
+	toColumn: DimDate.Date
+
+relationship 3f6e2a1c-8b4d-4e7a-9c15-2d7b6f0a1e03
+	fromColumn: FactSupportTicket.CreatedDate
+	toColumn: DimDate.Date
+
+relationship 3f6e2a1c-8b4d-4e7a-9c15-2d7b6f0a1e04
+	fromColumn: FactUsage.MonthStart
+	toColumn: DimDate.Date
+
+relationship 3f6e2a1c-8b4d-4e7a-9c15-2d7b6f0a1e05
+	fromColumn: FactChurnEvent.PlanID
+	toColumn: DimPlan.PlanID
+

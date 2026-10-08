@@ -1,0 +1,5 @@
+role 'Manager - LATAM'
+	modelPermission: read
+
+	tablePermission DimAccount = [Region] = "LATAM"
+

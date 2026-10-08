@@ -1,0 +1,9 @@
+reason_code,reason,reason_group
+PRC,Price too high,Price
+BUD,Budget cuts,Price
+FEA,Missing features,Product
+BUG,Product bugs / reliability,Product
+SUP,Poor support experience,Service
+ONB,Difficult onboarding,Service
+CMP,Moved to a competitor,Competitor
+CLS,Business closed,Other

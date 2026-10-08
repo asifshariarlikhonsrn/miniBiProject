@@ -1,0 +1,7 @@
+expression DataFolder = "D:\Work\SRN\GitHub\miniBiProject\data\raw\" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: ea1cb28e-7f38-4fa0-afde-c62d11ff0128
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Text
+

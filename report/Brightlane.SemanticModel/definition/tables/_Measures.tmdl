@@ -1,0 +1,388 @@
+table _Measures
+
+	measure MRR =
+			VAR _lastMonth = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE (
+			        SUM ( FactSubscriptionMonthly[MRR] ),
+			        REMOVEFILTERS ( DimDate ),
+			        DimDate[MonthStart] = _lastMonth
+			    )
+		formatString: \$#,0
+		displayFolder: 1 Core
+
+	measure ARR = [MRR] * 12
+		formatString: \$#,0
+		displayFolder: 1 Core
+
+	measure 'Active Customers' =
+			VAR _lastMonth = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE (
+			        DISTINCTCOUNT ( FactSubscriptionMonthly[AccountID] ),
+			        REMOVEFILTERS ( DimDate ),
+			        DimDate[MonthStart] = _lastMonth,
+			        FactSubscriptionMonthly[MRR] > 0
+			    )
+		formatString: #,0
+		displayFolder: 1 Core
+
+	measure 'New MRR' = CALCULATE ( SUM ( FactSubscriptionMonthly[MRRChange] ), FactSubscriptionMonthly[MovementType] = "New" )
+		formatString: \$#,0
+		displayFolder: 1 Core
+
+	measure 'Expansion MRR' = CALCULATE ( SUM ( FactSubscriptionMonthly[MRRChange] ), FactSubscriptionMonthly[MovementType] = "Expansion" )
+		formatString: \$#,0
+		displayFolder: 1 Core
+
+	measure 'Contraction MRR' = - CALCULATE ( SUM ( FactSubscriptionMonthly[MRRChange] ), FactSubscriptionMonthly[MovementType] = "Contraction" )
+		formatString: \$#,0
+		displayFolder: 1 Core
+
+	measure 'Churned MRR' = - CALCULATE ( SUM ( FactSubscriptionMonthly[MRRChange] ), FactSubscriptionMonthly[MovementType] = "Churn" )
+		formatString: \$#,0
+		displayFolder: 1 Core
+
+	measure 'Net New MRR' = [New MRR] + [Expansion MRR] - [Contraction MRR] - [Churned MRR]
+		formatString: \$#,0
+		displayFolder: 1 Core
+
+	measure 'Starting MRR' =
+			VAR _firstMonth = MIN ( DimDate[MonthStart] )
+			RETURN
+			    CALCULATE (
+			        SUM ( FactSubscriptionMonthly[MRR] ),
+			        REMOVEFILTERS ( DimDate ),
+			        DimDate[MonthStart] = EDATE ( _firstMonth, -1 )
+			    )
+		formatString: \$#,0
+		displayFolder: 2 Retention
+
+	measure 'Customers at Start' =
+			VAR _firstMonth = MIN ( DimDate[MonthStart] )
+			RETURN
+			    CALCULATE (
+			        DISTINCTCOUNT ( FactSubscriptionMonthly[AccountID] ),
+			        REMOVEFILTERS ( DimDate ),
+			        DimDate[MonthStart] = EDATE ( _firstMonth, -1 ),
+			        FactSubscriptionMonthly[MRR] > 0
+			    )
+		formatString: #,0
+		displayFolder: 2 Retention
+
+	measure 'Churned Customers' = CALCULATE ( DISTINCTCOUNT ( FactSubscriptionMonthly[AccountID] ), FactSubscriptionMonthly[MovementType] = "Churn" )
+		formatString: #,0
+		displayFolder: 2 Retention
+
+	measure 'Logo Churn Rate' = DIVIDE ( [Churned Customers], [Customers at Start] )
+		formatString: 0.0%
+		displayFolder: 2 Retention
+
+	measure 'Avg Monthly Churn %' = AVERAGEX ( VALUES ( DimDate[MonthStart] ), [Logo Churn Rate] )
+		formatString: 0.0%
+		displayFolder: 2 Retention
+
+	measure 'Gross Revenue Churn %' = DIVIDE ( [Churned MRR] + [Contraction MRR], [Starting MRR] )
+		formatString: 0.0%
+		displayFolder: 2 Retention
+
+	measure NRR = DIVIDE ( [Starting MRR] + [Expansion MRR] - [Contraction MRR] - [Churned MRR], [Starting MRR] )
+		formatString: 0.0%
+		displayFolder: 2 Retention
+
+	measure ARPA = DIVIDE ( [MRR], [Active Customers] )
+		formatString: \$#,0
+		displayFolder: 2 Retention
+
+	measure LTV = DIVIDE ( [ARPA], [Avg Monthly Churn %] )
+		formatString: \$#,0
+		displayFolder: 2 Retention
+
+	measure 'MRR PM' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( SUM ( FactSubscriptionMonthly[MRR] ), REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -1 ) )
+		formatString: \$#,0
+		displayFolder: 3 Time Intelligence
+
+	measure 'MRR MoM %' = DIVIDE ( [MRR] - [MRR PM], [MRR PM] )
+		formatString: 0.0%
+		displayFolder: 3 Time Intelligence
+
+	measure 'MRR PY' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( SUM ( FactSubscriptionMonthly[MRR] ), REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -12 ) )
+		formatString: \$#,0
+		displayFolder: 3 Time Intelligence
+
+	measure 'MRR YoY %' = DIVIDE ( [MRR] - [MRR PY], [MRR PY] )
+		formatString: 0.0%
+		displayFolder: 3 Time Intelligence
+
+	measure 'Logo Churn Rate PM' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( [Logo Churn Rate], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -1 ) )
+		formatString: 0.0%
+		displayFolder: 3 Time Intelligence
+
+	measure 'Net New MRR YTD' = TOTALYTD ( [Net New MRR], DimDate[Date] )
+		formatString: \$#,0
+		displayFolder: 3 Time Intelligence
+
+	measure 'Churned MRR YTD' = TOTALYTD ( [Churned MRR], DimDate[Date] )
+		formatString: \$#,0
+		displayFolder: 3 Time Intelligence
+
+	measure 'Churned MRR 3M Avg' =
+			VAR _months =
+			    CALCULATETABLE (
+			        VALUES ( DimDate[MonthStart] ),
+			        DATESINPERIOD ( DimDate[Date], MAX ( DimDate[Date] ), -3, MONTH )
+			    )
+			RETURN
+			    CALCULATE ( AVERAGEX ( _months, [Churned MRR] ), REMOVEFILTERS ( DimDate ) )
+		formatString: \$#,0
+		displayFolder: 3 Time Intelligence
+
+	measure 'Cohort Size' = COUNTROWS ( DimAccount )
+		formatString: #,0
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'Retained Accounts' =
+			CALCULATE (
+			    DISTINCTCOUNT ( FactSubscriptionMonthly[AccountID] ),
+			    FactSubscriptionMonthly[MRR] > 0,
+			    REMOVEFILTERS ( DimDate )
+			)
+		formatString: #,0
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'Cohort Retention %' = DIVIDE ( [Retained Accounts], [Cohort Size] )
+		formatString: 0.0%
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'Account MRR Rank' = RANKX ( ALLSELECTED ( DimAccount[AccountName] ), [MRR], , DESC, DENSE )
+		formatString: #,0
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'Active Users' = SUM ( FactUsage[ActiveUsers] )
+		formatString: #,0
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'Active Users 3M Avg' =
+			CALCULATE (
+			    AVERAGEX ( VALUES ( DimDate[MonthStart] ), [Active Users] ),
+			    DATESINPERIOD ( DimDate[Date], EOMONTH ( MAX ( DimDate[Date] ), -1 ), -3, MONTH )
+			)
+		formatString: #,0
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'Usage Change %' = DIVIDE ( [Active Users] - [Active Users 3M Avg], [Active Users 3M Avg] )
+		formatString: 0.0%
+		displayFolder: 4 Cohorts and Risk
+
+	measure Tickets = COUNTROWS ( FactSupportTicket )
+		formatString: #,0
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'Avg Resolution Hours' = AVERAGE ( FactSupportTicket[ResolutionHours] )
+		formatString: 0.0
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'Avg CSAT' = AVERAGE ( FactSupportTicket[CSAT] )
+		formatString: 0.00
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'At-Risk Accounts' =
+			COUNTROWS (
+			    FILTER (
+			        VALUES ( DimAccount[AccountID] ),
+			        [MRR] > 0 && ( [Usage Change %] < -0.30 || [Tickets] >= 3 )
+			    )
+			)
+		formatString: #,0
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'At-Risk MRR' =
+			SUMX (
+			    FILTER (
+			        VALUES ( DimAccount[AccountID] ),
+			        [MRR] > 0 && ( [Usage Change %] < -0.30 || [Tickets] >= 3 )
+			    ),
+			    [MRR]
+			)
+		formatString: \$#,0
+		displayFolder: 4 Cohorts and Risk
+
+	measure 'Bridge Value' =
+			SWITCH (
+			    SELECTEDVALUE ( 'MRR Bridge Steps'[Step] ),
+			    "Start MRR", [Starting MRR],
+			    "New", [New MRR],
+			    "Expansion", [Expansion MRR],
+			    "Contraction", - [Contraction MRR],
+			    "Churn", - [Churned MRR]
+			)
+		formatString: \$#,0
+		displayFolder: 5 Bridge
+
+	measure 'Overview Title' =
+			"Brightlane · " & [Reporting Month] & " · MRR " & FORMAT ( [MRR], "$#,0" )
+			    & IF ( [MRR MoM %] >= 0, ", up ", ", down " )
+			    & FORMAT ( ABS ( [MRR MoM %] ), "0.0%" ) & " vs last month"
+		displayFolder: 6 Storytelling
+
+	measure 'Churn Title' =
+			"Logo churn " & FORMAT ( [Logo Churn % (Month)], "0.0%" ) & " in " & [Reporting Month]
+			    & IF ( [Logo Churn % (Month)] <= [Logo Churn % (Prev Month)], " · improving", " · worsening" )
+		displayFolder: 6 Storytelling
+
+	measure 'KPI Colour' = IF ( [Net New MRR] >= 0, "#1B7F5A", "#C0392B" )
+		displayFolder: 6 Storytelling
+
+	measure 'Reporting Month' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    FORMAT ( _m, "mmm yyyy" )
+		displayFolder: 7 Executive KPIs
+
+	measure 'Net New MRR (Month)' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( [Net New MRR], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m )
+		formatString: \$#,0
+		displayFolder: 7 Executive KPIs
+
+	measure 'Net New MRR (Prev Month)' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( [Net New MRR], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -1 ) )
+		formatString: \$#,0
+		displayFolder: 7 Executive KPIs
+
+	measure 'Logo Churn % (Month)' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( [Logo Churn Rate], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m )
+		formatString: 0.0%
+		displayFolder: 7 Executive KPIs
+
+	measure 'Logo Churn % (Prev Month)' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( [Logo Churn Rate], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = EDATE ( _m, -1 ) )
+		formatString: 0.0%
+		displayFolder: 7 Executive KPIs
+
+	measure 'NRR (12M)' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( [NRR], REMOVEFILTERS ( DimDate ), DATESBETWEEN ( DimDate[Date], EDATE ( _m, -11 ), EOMONTH ( _m, 0 ) ) )
+		formatString: 0.0%
+		displayFolder: 7 Executive KPIs
+
+	measure 'At-Risk MRR (Month)' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( [At-Risk MRR], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m )
+		formatString: \$#,0
+		displayFolder: 7 Executive KPIs
+
+	measure 'At-Risk Accounts (Month)' =
+			VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			RETURN
+			    CALCULATE ( [At-Risk Accounts], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m )
+		formatString: #,0
+		displayFolder: 7 Executive KPIs
+
+	measure 'Usage Change % (Month)' =
+			IF ( [MRR] > 0, VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			    RETURN
+			        CALCULATE ( [Usage Change %], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m ) )
+		formatString: 0.0%
+		displayFolder: 7 Executive KPIs
+
+	measure 'Tickets (Month)' =
+			IF ( [MRR] > 0, VAR _m = CALCULATE ( MAX ( DimDate[MonthStart] ), DimDate[IsInData] = TRUE () )
+			    RETURN
+			        CALCULATE ( [Tickets], REMOVEFILTERS ( DimDate ), DimDate[MonthStart] = _m ) )
+		formatString: #,0
+		displayFolder: 7 Executive KPIs
+
+	measure 'MRR vs PM Label' =
+			VAR _d = [MRR MoM %]
+			RETURN
+			    IF ( NOT ISBLANK ( _d ), FORMAT ( _d, "+0.0%;-0.0%" ) & " vs last month" )
+		displayFolder: 7 Executive KPIs
+
+	measure 'Net New vs PM Label' = FORMAT ( [Net New MRR (Month)] - [Net New MRR (Prev Month)], "+$#,0;-$#,0" ) & " vs last month"
+		displayFolder: 7 Executive KPIs
+
+	measure 'Churn vs PM Label' = FORMAT ( ( [Logo Churn % (Month)] - [Logo Churn % (Prev Month)] ) * 100, "+0.0;-0.0" ) & " pts vs last month"
+		displayFolder: 7 Executive KPIs
+
+	measure 'NRR Label' = "Trailing 12 months · target 100%"
+		displayFolder: 7 Executive KPIs
+
+	measure 'At-Risk Label' = FORMAT ( [At-Risk Accounts (Month)], "#,0" ) & " accounts flagged"
+		displayFolder: 7 Executive KPIs
+
+	measure 'MRR Delta Colour' = IF ( [MRR MoM %] >= 0, "#1B7F5A", "#C0392B" )
+		displayFolder: 7 Executive KPIs
+
+	measure 'Net New Delta Colour' = IF ( [Net New MRR (Month)] >= [Net New MRR (Prev Month)], "#1B7F5A", "#C0392B" )
+		displayFolder: 7 Executive KPIs
+
+	measure 'Churn Delta Colour' = IF ( [Logo Churn % (Month)] <= [Logo Churn % (Prev Month)], "#1B7F5A", "#C0392B" )
+		displayFolder: 7 Executive KPIs
+
+	measure 'NRR Colour' = IF ( [NRR (12M)] >= 1, "#1B7F5A", "#C0392B" )
+		displayFolder: 7 Executive KPIs
+
+	measure 'Contraction MRR (Chart)' = - [Contraction MRR]
+		formatString: \$#,0
+		displayFolder: 8 Visual Helpers
+
+	measure 'Churned MRR (Chart)' = - [Churned MRR]
+		formatString: \$#,0
+		displayFolder: 8 Visual Helpers
+
+	measure 'MRR Lost' = SUM ( FactChurnEvent[MRRLost] )
+		formatString: \$#,0
+		displayFolder: 8 Visual Helpers
+
+	measure 'Churn Events' = COUNTROWS ( FactChurnEvent )
+		formatString: #,0
+		displayFolder: 8 Visual Helpers
+
+	measure 'Account Title' =
+			SELECTEDVALUE ( DimAccount[AccountName], "Select an account" )
+			    & " · " & SELECTEDVALUE ( DimAccount[Region] ) & " · " & SELECTEDVALUE ( DimAccount[Industry] )
+		displayFolder: 8 Visual Helpers
+
+	measure 'Account Status' =
+			VAR _churnDate = CALCULATE ( MAX ( FactChurnEvent[ChurnDate] ), REMOVEFILTERS ( DimDate ) )
+			VAR _reasonId = CALCULATE ( MAX ( FactChurnEvent[ReasonID] ), REMOVEFILTERS ( DimDate ) )
+			RETURN
+			    IF (
+			        ISBLANK ( _churnDate ),
+			        "Active customer",
+			        "Churned " & FORMAT ( _churnDate, "d mmm yyyy" ) & " · "
+			            & LOOKUPVALUE ( DimChurnReason[Reason], DimChurnReason[ReasonID], _reasonId )
+			    )
+		displayFolder: 8 Visual Helpers
+
+	measure 'Tooltip Title' = FORMAT ( MAX ( DimDate[MonthStart] ), "mmmm yyyy" )
+		displayFolder: 8 Visual Helpers
+
+	column Value
+		dataType: int64
+		isHidden
+		summarizeBy: none
+		sourceColumn: [Value]
+
+	partition _Measures = calculated
+		mode: import
+		source = {0}
