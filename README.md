@@ -2,8 +2,7 @@
 
 A 3-page Power BI dashboard that shows the owners of a B2B SaaS company **how much recurring revenue they lose to churn, from whom, why, and which accounts to save next**, at a glance.
 
-<!-- Dashboard screenshot: save it as docs/images/overview.png, then replace this comment with:
-![Executive overview](docs/images/overview.png) -->
+![Executive Overview page](docs/images/overview.png)
 
 ## Key findings
 
